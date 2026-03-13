@@ -1,0 +1,52 @@
+var items = Zotero.getActiveZoteroPane().getSelectedItems();
+if (!items.length) {
+    return "请先在 Zotero 中选中要处理的条目。";
+}
+
+let updatedEN = 0;
+let updatedZH = 0;
+let skipped = 0;
+
+function hasCJK(str) {
+    return /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/.test(str || "");
+}
+
+function hasLatin(str) {
+    return /[A-Za-z]/.test(str || "");
+}
+
+for (let item of items) {
+    if (!item.isRegularItem()) {
+        skipped++;
+        continue;
+    }
+
+    let oldLang = (item.getField("language") || "").trim();
+    if (oldLang) {
+        skipped++;
+        continue; // 已填写 language 的不改
+    }
+
+    let title = item.getField("title") || "";
+    let creators = item.getCreators().map(c => {
+        return [c.firstName || "", c.lastName || "", c.name || ""].join(" ");
+    }).join(" ");
+
+    let text = (title + " " + creators).trim();
+
+    if (hasCJK(text)) {
+        item.setField("language", "zh-CN");
+        await item.saveTx();
+        updatedZH++;
+    }
+    else if (hasLatin(text)) {
+        item.setField("language", "en");
+        await item.saveTx();
+        updatedEN++;
+    }
+    else {
+        skipped++;
+    }
+}
+
+return `完成：英文 ${updatedEN} 条，中文 ${updatedZH} 条，跳过 ${skipped} 条。`;
